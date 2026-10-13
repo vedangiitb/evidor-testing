@@ -110,6 +110,8 @@ class TelemetryStats:
     execution_time_seconds: float = 0.0
     phoenix_url: str | None = None
     phoenix_project: str = "deep-research"
+    langfuse_enabled: bool = False
+    langfuse_url: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -122,6 +124,8 @@ class TelemetryStats:
             "execution_time_seconds": round(self.execution_time_seconds, 2),
             "phoenix_url": self.phoenix_url,
             "phoenix_project": self.phoenix_project,
+            "langfuse_enabled": self.langfuse_enabled,
+            "langfuse_url": self.langfuse_url,
         }
 
 

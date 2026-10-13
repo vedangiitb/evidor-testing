@@ -73,6 +73,11 @@ def parse_args(args: list[str] | None = None) -> argparse.Namespace:
         help="Disable Arize Phoenix telemetry tracing.",
     )
     parser.add_argument(
+        "--no-langfuse",
+        action="store_true",
+        help="Disable Langfuse telemetry tracing.",
+    )
+    parser.add_argument(
         "--phoenix-endpoint",
         type=str,
         default=os.getenv("PHOENIX_COLLECTOR_ENDPOINT", "http://localhost:6006/v1/traces"),
@@ -119,6 +124,7 @@ def main() -> None:
     print(f"Topic:            {args.query}")
     print(f"Provider:         {args.provider.upper()} ({args.model})")
     print(f"Phoenix Tracing:  {'Disabled' if args.no_phoenix else 'Enabled'}")
+    print(f"Langfuse Tracing: {'Disabled' if args.no_langfuse else 'Auto/Enabled'}")
     print("-" * 70)
 
     # Provider setup
@@ -145,6 +151,7 @@ def main() -> None:
         enable_phoenix=not args.no_phoenix,
         phoenix_endpoint=args.phoenix_endpoint,
         phoenix_project_name=args.phoenix_project,
+        enable_langfuse=not args.no_langfuse,
         max_tool_iterations=args.max_iterations,
     )
 
@@ -152,6 +159,8 @@ def main() -> None:
         print(f"📊 Arize Phoenix Dashboard: {engine.phoenix_ui_url}")
         if args.open_phoenix:
             webbrowser.open(engine.phoenix_ui_url)
+    if engine.langfuse_ui_url and engine.enable_langfuse:
+        print(f"⚡ Langfuse Dashboard:      {engine.langfuse_ui_url}")
 
     print("\n🔍 Conducting autonomous research and analyzing sources...\n")
 
@@ -182,6 +191,8 @@ def main() -> None:
         print(f"\n💾 Saved Report:         {report.saved_file_path}")
     if report.telemetry.phoenix_url:
         print(f"📊 View Phoenix Traces:   {report.telemetry.phoenix_url}")
+    if report.telemetry.langfuse_enabled and report.telemetry.langfuse_url:
+        print(f"⚡ View Langfuse Traces:  {report.telemetry.langfuse_url}")
     print("=" * 70 + "\n")
 
 

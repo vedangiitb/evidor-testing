@@ -93,6 +93,16 @@ st.markdown(
         display: inline-block;
         margin-right: 6px;
     }
+    .langfuse-badge {
+        background: linear-gradient(135deg, #10B981 0%, #059669 100%);
+        color: white;
+        padding: 4px 10px;
+        border-radius: 12px;
+        font-size: 0.8rem;
+        font-weight: 600;
+        display: inline-block;
+        margin-left: 6px;
+    }
     </style>
     """,
     unsafe_allow_html=True,
@@ -156,6 +166,20 @@ with st.sidebar:
         )
         st.markdown(f"[🔗 Open Phoenix Dashboard (Port 6006)](http://localhost:6006)")
 
+    has_langfuse_keys = bool(os.getenv("LANGFUSE_PUBLIC_KEY") and os.getenv("LANGFUSE_SECRET_KEY"))
+    enable_langfuse = st.checkbox("Enable Langfuse Tracing", value=has_langfuse_keys)
+    langfuse_base = os.getenv("LANGFUSE_BASE_URL", "https://cloud.langfuse.com")
+    if enable_langfuse:
+        st.markdown(
+            f"""
+            <div style="background-color: #ECFDF5; border-left: 4px solid #10B981; padding: 10px; border-radius: 4px; font-size: 0.85rem; color: #065F46;">
+                <strong>Langfuse Active:</strong> Agent runs, generations, and tool traces are streamed to Langfuse.
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+        st.markdown(f"[🔗 Open Langfuse Cloud]({langfuse_base})")
+
     # Saved reports browser in sidebar
     st.markdown("---")
     st.subheader("📂 Past Research Reports")
@@ -190,6 +214,7 @@ st.markdown(
     <div>
         <span class="evidor-badge">Evidor Agent Runtime</span>
         <span class="phoenix-badge">Arize Phoenix OpenInference</span>
+        <span class="langfuse-badge">Langfuse Telemetry</span>
     </div>
     <div class="main-header">Autonomous Deep Research Agent</div>
     <div class="sub-header">
@@ -257,6 +282,7 @@ if run_btn and query_input.strip():
         enable_phoenix=enable_phoenix,
         phoenix_endpoint=phoenix_endpoint,
         phoenix_project_name=phoenix_project,
+        enable_langfuse=enable_langfuse,
         max_tool_iterations=max_tool_iterations,
     )
 
@@ -448,6 +474,20 @@ if report is not None:
                 """,
                 unsafe_allow_html=True,
             )
+            if report.telemetry.langfuse_enabled:
+                langfuse_url = report.telemetry.langfuse_url or "https://cloud.langfuse.com"
+                st.markdown(
+                    f"""
+                    <div style="padding: 20px; border: 2px dashed #10B981; border-radius: 8px; text-align: center; margin-top: 14px;">
+                        <h4>⚡ Live Langfuse Cloud Traces</h4>
+                        <p style="color: #64748B;">Inspect production LLM generations, tool executions, latency waterfalls, and cost attribution in Langfuse.</p>
+                        <a href="{langfuse_url}" target="_blank" style="background: #10B981; color: white; padding: 10px 20px; border-radius: 6px; text-decoration: none; font-weight: 600; display: inline-block;">
+                            Open Langfuse Cloud ↗
+                        </a>
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
 
 st.markdown("<br><hr>", unsafe_allow_html=True)
 st.caption("Built with 💙 using Evidor, Arize Phoenix, and Streamlit.")

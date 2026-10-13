@@ -61,6 +61,10 @@ class DeepResearchEngine:
         enable_phoenix: bool = True,
         phoenix_endpoint: str | None = None,
         phoenix_project_name: str = "deep-research",
+        enable_langfuse: bool | None = None,
+        langfuse_public_key: str | None = None,
+        langfuse_secret_key: str | None = None,
+        langfuse_base_url: str | None = None,
         max_tool_iterations: int = 30,
         tool_timeout: float = 30.0,
         extra_sinks: Sequence[TelemetrySink] | None = None,
@@ -82,6 +86,22 @@ class DeepResearchEngine:
         self.phoenix_ui_url: str | None = None
         self._phoenix_sink: Any = None
 
+        # Langfuse telemetry configuration
+        self.langfuse_public_key = langfuse_public_key or os.getenv("LANGFUSE_PUBLIC_KEY")
+        self.langfuse_secret_key = langfuse_secret_key or os.getenv("LANGFUSE_SECRET_KEY")
+        self.langfuse_base_url = (
+            langfuse_base_url
+            or os.getenv("LANGFUSE_BASE_URL")
+            or os.getenv("LANGFUSE_HOST")
+            or "https://cloud.langfuse.com"
+        )
+        if enable_langfuse is None:
+            self.enable_langfuse = bool(self.langfuse_public_key and self.langfuse_secret_key)
+        else:
+            self.enable_langfuse = enable_langfuse
+        self.langfuse_ui_url: str | None = None
+        self._langfuse_sink: Any = None
+
         # Telemetry setup
         self._in_memory_sink = InMemorySink()
         sinks: list[TelemetrySink] = [self._in_memory_sink]
@@ -92,6 +112,11 @@ class DeepResearchEngine:
             self._setup_phoenix()
             if self._phoenix_sink is not None:
                 sinks.append(self._phoenix_sink)
+
+        if self.enable_langfuse:
+            self._setup_langfuse()
+            if self._langfuse_sink is not None:
+                sinks.append(self._langfuse_sink)
 
         self._sinks = sinks
         self.context: ResearchContext = ResearchContext(output_dir=self.output_dir)
@@ -114,6 +139,28 @@ class DeepResearchEngine:
             logger.warning(f"Failed to initialize Arize Phoenix telemetry: {exc}")
             self.enable_phoenix = False
             self.phoenix_ui_url = None
+
+    def _setup_langfuse(self) -> None:
+        """Initialize Langfuse telemetry pointing to cloud or self-hosted Langfuse."""
+        try:
+            from evidor import LangfuseSink
+
+            kwargs: dict[str, Any] = {}
+            if self.langfuse_public_key:
+                kwargs["public_key"] = self.langfuse_public_key
+            if self.langfuse_secret_key:
+                kwargs["secret_key"] = self.langfuse_secret_key
+            if self.langfuse_base_url:
+                kwargs["base_url"] = self.langfuse_base_url
+
+            self._langfuse_sink = LangfuseSink(**kwargs)
+            self.langfuse_ui_url = self.langfuse_base_url.rstrip("/")
+            logger.info(f"Langfuse telemetry connected ({self.langfuse_ui_url})")
+        except Exception as exc:
+            logger.warning(f"Failed to initialize Langfuse telemetry: {exc}")
+            self.enable_langfuse = False
+            self.langfuse_ui_url = None
+            self._langfuse_sink = None
 
     def _get_agent(self) -> Agent:
         """Lazily initialize the Evidor Agent instance."""
@@ -192,6 +239,8 @@ class DeepResearchEngine:
             execution_time_seconds=elapsed_time,
             phoenix_url=self.phoenix_ui_url,
             phoenix_project=self.phoenix_project_name,
+            langfuse_enabled=self.enable_langfuse and self._langfuse_sink is not None,
+            langfuse_url=self.langfuse_ui_url,
         )
 
         # Ensure markdown report is populated and saved
@@ -292,3 +341,13 @@ class DeepResearchEngine:
         """Clean up agent, telemetry sinks, and background workers."""
         if self.agent is not None:
             self.agent.close()
+            return
+
+        # The agent owns and closes the runtime once it has been created.  If
+        # this engine is closed before its first research run, no runtime
+        # exists, so release directly configured telemetry resources here.
+        for sink in self._sinks:
+            try:
+                sink.close()
+            except Exception:
+                pass
