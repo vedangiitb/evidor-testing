@@ -118,7 +118,6 @@ if "activity_logs" not in st.session_state:
 
 # Sidebar Configuration
 with st.sidebar:
-    st.image("https://raw.githubusercontent.com/evidor/evidor-core/main/assets/logo.png" if False else "", width=40)
     st.title("⚙️ Research Settings")
 
     provider_choice = st.selectbox(
@@ -303,7 +302,10 @@ if run_btn and query_input.strip():
             report = engine.research(query_input.strip(), progress_callback=ui_progress_callback)
             st.session_state.current_report = report
 
-        progress_placeholder.success(f"✨ **Research Complete!** Full report synthesized and saved to `{report.saved_file_path}`.")
+        if report.saved_file_path:
+            progress_placeholder.success(f"✨ **Research Complete!** Full report synthesized and saved to `{report.saved_file_path}`.")
+        else:
+            progress_placeholder.success("✨ **Research Complete!** Full report synthesized.")
 
     except Exception as exc:
         progress_placeholder.error(f"❌ Error during research execution: {exc}")
