@@ -127,11 +127,11 @@ with st.sidebar:
     )
 
     if provider_choice == "Google Gemini":
-        default_model = "gemini-2.5-flash"
-        model_options = ["gemini-2.5-flash", "gemini-1.5-pro", "gemini-2.0-flash"]
+        default_model = "gemini-3.8-flash"
+        model_options = ["gemini-3.8-flash", "gemini-3.5-flash-lite", "gemini-3.1-pro-preview"]
     else:
-        default_model = "gpt-4o-mini"
-        model_options = ["gpt-4o-mini", "gpt-4o", "o3-mini"]
+        default_model = "gpt-6-astra"
+        model_options = ["gpt-6-astra", "gpt-6.1-sol", "gpt-6-luna", "gpt-4.1-mini"]
 
     model_name = st.selectbox("Model Identifier", options=model_options, index=0)
 

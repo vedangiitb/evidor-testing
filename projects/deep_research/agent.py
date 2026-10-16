@@ -15,7 +15,6 @@ from evidor import (
     GeminiProvider,
     ModelProvider,
     OpenAIProvider,
-    RetryConfig,
     TelemetryRuntime,
     TelemetrySink,
 )
@@ -72,15 +71,12 @@ def create_research_agent(
     context: ResearchContext,
     *,
     provider: ModelProvider | None = None,
-    model_name: str = "gemini-2.5-flash",
+    model_name: str = "gemini-3.8-flash",
     search_provider: WebSearchProvider | None = None,
     max_search_results: int = 5,
     max_tool_iterations: int = 30,
     tool_timeout: float = 25.0,
-    context_window: int = 40_000,
-    max_messages: int = 60,
     telemetry: TelemetryRuntime | TelemetrySink | Sequence[TelemetrySink] | None = None,
-    retry_config: RetryConfig | bool | None = None,
 ) -> Agent:
     """Create a configured Deep Research Agent.
 
@@ -92,10 +88,7 @@ def create_research_agent(
         max_search_results: Max results per search tool invocation.
         max_tool_iterations: Maximum tool call iterations per turn.
         tool_timeout: Timeout in seconds for each tool execution.
-        context_window: Maximum token window before automatic context compaction.
-        max_messages: Maximum messages before compaction.
         telemetry: Attached telemetry sinks (e.g. PhoenixSink, InMemorySink).
-        retry_config: Unified retry configuration.
 
     Returns:
         Configured Evidor Agent.
@@ -107,7 +100,7 @@ def create_research_agent(
         if gemini_key:
             provider = GeminiProvider(model=model_name)
         elif openai_key:
-            provider = OpenAIProvider(model="gpt-4o-mini" if "flash" in model_name else model_name)
+            provider = OpenAIProvider(model="gpt-4.1-mini" if "flash" in model_name else model_name)
         else:
             raise ValueError(
                 "Neither GEMINI_API_KEY nor OPENAI_API_KEY found in environment or .env. "
@@ -127,9 +120,6 @@ def create_research_agent(
         tools=tools,
         max_tool_iterations=max_tool_iterations,
         tool_timeout=tool_timeout,
-        context_window=context_window,
-        max_messages=max_messages,
         telemetry=telemetry,
-        retry_config=retry_config or RetryConfig(max_retries=3, initial_delay=1.0, max_delay=10.0),
     )
 

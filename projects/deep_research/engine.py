@@ -47,7 +47,7 @@ class DeepResearchEngine:
         *,
         output_dir: str | Path | None = None,
         provider: ModelProvider | None = None,
-        model_name: str = "gemini-2.5-flash",
+        model_name: str = "gemini-3.8-flash",
         search_provider: WebSearchProvider | None = None,
         enable_phoenix: bool = True,
         phoenix_endpoint: str | None = None,

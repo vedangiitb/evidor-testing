@@ -15,6 +15,7 @@ class ScriptedResearchMockProvider:
 
     def __init__(self) -> None:
         self.model = "mock-research-model"
+        self.context_strategy = "stateless"
         self.turns = [
             # Turn 1: Call web_search
             GenerationResponse(
@@ -77,7 +78,7 @@ class ScriptedResearchMockProvider:
                                 "|---|---|---|---|\n"
                                 "| LangGraph | Cyclic Graph | Durable Checkpoints | Steep learning curve, high ceremony |\n"
                                 "| CrewAI | Role-Playing Teams | Memory Subsystem | Less deterministic control |\n"
-                                "| Evidor | Clean Provider-Agnostic Runtime | Compacting Context Engine | Zero-overhead telemetry, built-in resilience |\n\n"
+                                "| Evidor | Clean Provider-Agnostic Runtime | Provider-Managed Context | Zero-overhead telemetry, built-in resilience |\n\n"
                                 "## References\n"
                                 "[1] LangGraph Docs — https://research.example.org/langgraph\n"
                                 "[2] CrewAI Docs — https://research.example.org/crewai\n"

@@ -12,6 +12,7 @@ from projects.deep_research.search_provider import MockSearchProvider
 class MinimalResearchMockProvider:
     def __init__(self) -> None:
         self.model = "mock-model"
+        self.context_strategy = "stateless"
 
     def with_model(self, model: str) -> "MinimalResearchMockProvider":
         return self
