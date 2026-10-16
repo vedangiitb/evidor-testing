@@ -11,7 +11,7 @@ def main() -> None:
     # 1. Stdio server (e.g. SQLite, GitHub, or Filesystem MCP)
     # 2. Remote Streamable HTTP server
     agent = Agent(
-        GeminiProvider(model="gemini-2.5-flash"),
+        GeminiProvider(model="gemini-3.8-flash"),
         mcp_servers=[
             # Stdio server configured via MCPServerConfig
             MCPServerConfig.stdio(

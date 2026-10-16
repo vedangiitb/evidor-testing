@@ -24,7 +24,7 @@ async def fetch_stock_quote(symbol: str) -> dict:
 
 async def main() -> None:
     async with Agent(
-        GeminiProvider(model="gemini-2.5-flash"),
+        GeminiProvider(model="gemini-3.8-flash"),
         tools=[fetch_stock_quote],
         system_prompt="You are a financial market assistant.",
     ) as agent:

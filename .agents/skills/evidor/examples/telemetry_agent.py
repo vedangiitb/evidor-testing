@@ -13,7 +13,7 @@ def main() -> None:
     memory_sink = InMemorySink()
 
     agent = Agent(
-        GeminiProvider(model="gemini-2.5-flash"),
+        GeminiProvider(model="gemini-3.8-flash"),
         tools=[calculator],
         telemetry=[console_sink, memory_sink],
     )
@@ -33,7 +33,7 @@ def main() -> None:
     for i, event in enumerate(llm_events):
         print(f"  Call {i+1}: model={event.model}, status={event.status}, duration={event.duration_ms:.1f}ms")
         if event.token_usage:
-            print(f"    Tokens: prompt={event.token_usage.input_tokens}, completion={event.token_usage.output_tokens}")
+            print(f"    Tokens: prompt={event.token_usage.prompt_tokens}, completion={event.token_usage.completion_tokens}")
 
     print(f"Recorded {len(tool_events)} tool call(s)")
     for event in tool_events:

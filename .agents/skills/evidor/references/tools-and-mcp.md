@@ -79,7 +79,7 @@ Evidor includes zero-setup built-in tools that can be attached directly to agent
 from evidor import Agent, GeminiProvider, calculator, get_current_time
 
 agent = Agent(
-    GeminiProvider("gemini-2.5-flash"),
+    GeminiProvider("gemini-3.8-flash"),
     tools=[calculator, get_current_time],
 )
 
@@ -103,7 +103,7 @@ Creates 6 tools scoped strictly within a designated directory root:
 from evidor import Agent, GeminiProvider, filesystem_tools
 
 agent = Agent(
-    GeminiProvider("gemini-2.5-flash"),
+    GeminiProvider("gemini-3.8-flash"),
     tools=[
         *filesystem_tools(
             root_dir="./sandbox_data",
@@ -132,7 +132,7 @@ search_tool = web_search(TavilySearchProvider(), max_results=5)
 # 3. Exa Search (requires EXA_API_KEY)
 # search_tool = web_search(ExaSearchProvider(), max_results=5)
 
-agent = Agent(GeminiProvider("gemini-2.5-flash"), tools=[search_tool])
+agent = Agent(GeminiProvider("gemini-3.8-flash"), tools=[search_tool])
 ```
 
 ---
@@ -149,7 +149,7 @@ Pass server configurations directly into `Agent(mcp_servers=...)`. The agent man
 from evidor import Agent, GeminiProvider, MCPServerConfig
 
 agent = Agent(
-    GeminiProvider("gemini-2.5-flash"),
+    GeminiProvider("gemini-3.8-flash"),
     mcp_servers={
         # Stdio command
         "filesystem": {
@@ -213,8 +213,8 @@ client = MCPClient({
 client.connect()
 
 # Both agents reuse the exact same client connection
-researcher = Agent(GeminiProvider("gemini-2.5-flash"), mcp_client=client)
-writer = Agent(GeminiProvider("gemini-2.5-flash"), mcp_client=client)
+researcher = Agent(GeminiProvider("gemini-3.8-flash"), mcp_client=client)
+writer = Agent(GeminiProvider("gemini-3.8-flash"), mcp_client=client)
 
 # Clean up client on application shutdown
 client.close()

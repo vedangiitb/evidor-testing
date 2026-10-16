@@ -11,11 +11,10 @@ Evidor includes a decoupled, non-blocking telemetry subsystem designed for zero 
 - **Trace Context Propagation**: Evidor tracks parent-child span hierarchy across synchronous and asynchronous operations using `contextvars`.
 - **Zero-Dependency Sinks**: `ConsoleSink` and `InMemorySink` work out of the box with `pip install evidor`.
 
-```
-agent.run                           [openinference.span.kind = "AGENT"]
-  ├── llm.gemini-2.5-flash (attempt 0)  [openinference.span.kind = "LLM"]
-  ├── tool.calculator                   [openinference.span.kind = "TOOL"]
-  └── llm.gemini-2.5-flash (attempt 0)  [openinference.span.kind = "LLM", status = "ok"]
+```text
+agent.run                     [openinference.span.kind = "AGENT"]
+  ├── llm.gemini-3.8-flash    [openinference.span.kind = "LLM", status = "ok"]
+  └── tool.calculator         [openinference.span.kind = "TOOL"]
 ```
 
 ---
@@ -31,7 +30,7 @@ import sys
 from evidor import Agent, GeminiProvider, ConsoleSink
 
 sink = ConsoleSink(stream=sys.stdout)
-agent = Agent(GeminiProvider("gemini-2.5-flash"), telemetry=sink)
+agent = Agent(GeminiProvider("gemini-3.8-flash"), telemetry=sink)
 agent.send("Hello agent!")
 agent.close()
 ```
@@ -53,7 +52,7 @@ from evidor.telemetry import (
 )
 
 sink = InMemorySink()
-agent = Agent(GeminiProvider("gemini-2.5-flash"), telemetry=sink)
+agent = Agent(GeminiProvider("gemini-3.8-flash"), telemetry=sink)
 response = agent.send("What is 10 + 20?")
 agent.close()
 
@@ -62,6 +61,8 @@ llm_events = sink.filter(LLMCallEndEvent)
 print(f"Number of LLM calls: {len(llm_events)}")
 if llm_events[0].token_usage:
     print(f"Total tokens: {llm_events[0].token_usage.total_tokens}")
+    print(f"Prompt tokens: {llm_events[0].token_usage.prompt_tokens}")
+    print(f"Completion tokens: {llm_events[0].token_usage.completion_tokens}")
 
 # Check error events
 errors = sink.filter(ErrorEvent)
@@ -91,7 +92,7 @@ provider.add_span_processor(BatchSpanProcessor(ConsoleSpanExporter()))
 trace.set_tracer_provider(provider)
 
 sink = OpenTelemetrySink(tracer_provider=provider)
-agent = Agent(GeminiProvider("gemini-2.5-flash"), telemetry=sink)
+agent = Agent(GeminiProvider("gemini-3.8-flash"), telemetry=sink)
 agent.send("Explain quantum superposition.")
 agent.close()
 ```
@@ -109,7 +110,7 @@ from evidor import Agent, GeminiProvider, LangfuseSink
 
 # Reads LANGFUSE_PUBLIC_KEY, LANGFUSE_SECRET_KEY, LANGFUSE_HOST from env
 sink = LangfuseSink()
-agent = Agent(GeminiProvider("gemini-2.5-flash"), telemetry=sink)
+agent = Agent(GeminiProvider("gemini-3.8-flash"), telemetry=sink)
 agent.send("Write a test plan.")
 agent.close()  # Flushes all traces to Langfuse backend
 ```
@@ -129,7 +130,7 @@ sink = PhoenixSink(
     endpoint="http://localhost:6006/v1/traces",
     project_name="evidor-experiments",
 )
-agent = Agent(GeminiProvider("gemini-2.5-flash"), telemetry=sink)
+agent = Agent(GeminiProvider("gemini-3.8-flash"), telemetry=sink)
 agent.send("Analyze customer feedback.")
 agent.close()
 ```
@@ -146,7 +147,7 @@ pip install "evidor[prometheus]"
 from evidor import Agent, GeminiProvider, PrometheusSink
 
 prom_sink = PrometheusSink()
-agent = Agent(GeminiProvider("gemini-2.5-flash"), telemetry=prom_sink)
+agent = Agent(GeminiProvider("gemini-3.8-flash"), telemetry=prom_sink)
 agent.send("Summarize metrics.")
 
 # Scrape / export formatted Prometheus text
@@ -157,7 +158,6 @@ print(exposition)
 Exported metrics include:
 - `evidor_agent_runs_total`
 - `evidor_llm_calls_total`
-- `evidor_llm_retries_total`
 - `evidor_tokens_total`
 - `evidor_tool_calls_total`
 - `evidor_errors_total`
@@ -172,7 +172,7 @@ In sensitive or regulated environments where user prompts and LLM answers cannot
 from evidor import Agent, GeminiProvider, OpenTelemetrySink, LangfuseSink
 
 sink = OpenTelemetrySink(capture_content=False)
-agent = Agent(GeminiProvider("gemini-2.5-flash"), telemetry=sink)
+agent = Agent(GeminiProvider("gemini-3.8-flash"), telemetry=sink)
 ```
 
 | Field / Attribute | `capture_content=True` | `capture_content=False` |
@@ -205,6 +205,5 @@ runtime = TelemetryRuntime(
     overflow_strategy="drop_oldest", # "drop_oldest" or "drop_newest"
 )
 
-agent = Agent(GeminiProvider("gemini-2.5-flash"), telemetry=runtime)
+agent = Agent(GeminiProvider("gemini-3.8-flash"), telemetry=runtime)
 ```
-

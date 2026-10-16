@@ -28,7 +28,7 @@ def convert_currency(amount: float, from_curr: str, to_curr: str) -> dict:
     }
 
 def main() -> None:
-    provider = GeminiProvider(model="gemini-2.5-flash")
+    provider = GeminiProvider(model="gemini-3.8-flash")
 
     # Equip agent with custom and built-in tools
     agent = Agent(

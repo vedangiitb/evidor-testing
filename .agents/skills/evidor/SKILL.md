@@ -4,14 +4,15 @@ description: >-
   Comprehensive guide, runbook, and reference for building, testing, and debugging AI agent
   projects using the Evidor Python runtime (evidor). Use this skill whenever creating new test
   projects, experiment scripts, or benchmarks with Evidor, configuring model providers
-  (OpenAI, Anthropic, Gemini, or custom), managing context windows and automatic summarization,
-  defining tools or integrating Model Context Protocol (MCP) servers, tuning LLM retries,
-  and configuring telemetry sinks (Console, InMemory, OpenTelemetry, Langfuse, Phoenix, Prometheus).
+  (OpenAI Responses API, Anthropic, Gemini Interactions API, or custom), managing provider-native
+  conversation state and context chaining, defining tools or integrating Model Context Protocol
+  (MCP) servers, and configuring telemetry sinks (Console, InMemory, OpenTelemetry, Langfuse,
+  Phoenix, Prometheus).
 ---
 
 # Evidor Agent Development & Testing Skill
 
-Evidor is an open-source, provider-agnostic runtime for building AI agents in Python. It provides a clean, unified interface for conversational agents across multiple model providers, built-in context window management with automatic summarization, unified retries with exponential backoff, function calling, Model Context Protocol (MCP) integration, and decoupled non-blocking telemetry.
+Evidor is an open-source, provider-agnostic runtime for building AI agents in Python. It provides a clean, modern interface for conversational agents across multiple model providers, native provider-managed context chaining (OpenAI Responses API, Google Gemini Interactions API, Anthropic prompt caching), stateless LLM execution, function calling, Model Context Protocol (MCP) integration, and decoupled non-blocking telemetry.
 
 Official Website & Docs: [https://evidorlabs.com/](https://evidorlabs.com/)  
 Source Code: `../evidor-core` (or `https://github.com/evidor/evidor-core`)
@@ -35,15 +36,16 @@ from evidor import (
     filesystem_tools,
     web_search,
     TavilySearchProvider,
-    RetryConfig,
     ConsoleSink,
     InMemorySink,
 )
 
-# 1. Basic Agent
-agent = Agent(GeminiProvider(model="gemini-2.5-flash"))
+# 1. Basic Agent with Provider-Managed Context Chaining
+agent = Agent(GeminiProvider(model="gemini-3.8-flash"))
 response = agent.send("Hello world!")
-print(response.text)
+print(f"Response: {response.text}")
+print(f"Strategy: {agent.strategy}")         # 'interaction_chain'
+print(f"Response ID: {agent.last_response_id}")
 
 # 2. Agent with Tools & System Prompt
 @tool
@@ -52,7 +54,7 @@ def multiply(a: float, b: float) -> float:
     return a * b
 
 agent = Agent(
-    GeminiProvider(model="gemini-2.5-flash"),
+    GeminiProvider(model="gemini-3.8-flash"),
     system_prompt="You are a helpful math assistant.",
     tools=[multiply, calculator, get_current_time],
     tool_timeout=10.0,
@@ -80,8 +82,8 @@ pip install "evidor[all]"
 ```
 
 Available provider extras:
-- `evidor[gemini]`: Google Gemini (`google-genai`)
-- `evidor[openai]`: OpenAI (`openai`)
+- `evidor[gemini]`: Google Gemini (`google-genai>=1.0.0`)
+- `evidor[openai]`: OpenAI (`openai>=1.0.0`)
 - `evidor[anthropic]`: Anthropic (`anthropic`)
 - `evidor[mcp]`: Model Context Protocol (`mcp`)
 - `evidor[otel]`: OpenTelemetry (`opentelemetry-api`, `opentelemetry-sdk`)
@@ -108,9 +110,8 @@ Always call `dotenv.load_dotenv()` or ensure environment variables are present b
 | Feature | Primary Classes / Functions | Key Behavior |
 | :--- | :--- | :--- |
 | **Agent Core** | `Agent`, `Message` | Stateful multi-turn conversation, session lifecycle, synchronous `send()` and native asynchronous `send_async()`. |
-| **Context Engine** | `ConversationContext`, `DEFAULT_CONTEXT_WINDOW` (16k), `DEFAULT_MAX_MESSAGES` (50) | Automatically estimates tokens and turn count. Triggers background summarization into a bounded summary message when limits are exceeded. |
-| **Summarization** | `summarization_model` arg in `Agent` | Can use a faster/cheaper model or provider (e.g., `gemini-2.5-flash` or `gpt-4.1-mini`) for summarization while using a larger model for the main agent. |
-| **Retries & Backoff** | `RetryConfig`, `max_retries` | Automated exponential backoff with full jitter and `Retry-After` support. Narrow retry boundary around provider API calls. SDK retries are disabled to prevent multiplied attempts. |
+| **Provider-Managed Context** | `agent.strategy`, `agent.last_response_id` | Native server-side context chaining via OpenAI Responses API (`previous_response_id`), Gemini Interactions API (`previous_interaction_id`), or Anthropic prompt caching headers. No client-side token counting or summarization. |
+| **Stateless LLM Calls** | `provider.generate(request)` | Direct single-turn or user-managed message history without automatic mutations or client-side trimming. |
 | **Tools & Functions** | `@tool`, `Tool`, `ToolExecutor` | Automatic JSON Schema generation from type annotations and docstrings. Async execution, timeouts, and error self-correction. |
 | **Built-in Toolkits** | `calculator`, `get_current_time`, `filesystem_tools`, `web_search` | Ready-to-use zero-setup tools. Scoped directory access and neutral web search adapters (Tavily, Exa, Brave). |
 | **MCP Integration** | `mcp_servers`, `mcp_client`, `MCPServerConfig`, `MCPClient` | First-class Model Context Protocol client. Connects over stdio, modern Streamable HTTP, or SSE. Dynamic tool discovery and multi-server composition. |
@@ -126,15 +127,17 @@ When creating a new test project or experiment in `evidor-testing`:
    Keep experiments self-contained, e.g.:
    - `projects/01_gemini_basics/`
    - `projects/02_mcp_filesystem/`
-   - `projects/03_telemetry_langfuse/`
+   - `projects/03_context_chaining/`
 2. **Configure dependencies & environment**:
    Include a local `.env` loader and verify credentials before running.
 3. **Select provider & model**:
-   Use `GeminiProvider(model="gemini-2.5-flash")` for fast testing or `OpenAIProvider(model="gpt-4.1-mini")` / `AnthropicProvider(model="claude-3-5-sonnet-20241022")`.
+   - Google Gemini: `GeminiProvider(model="gemini-3.8-flash")` or `gemini-3.5-flash-lite`
+   - OpenAI: `OpenAIProvider(model="gpt-6-astra")` or `gpt-4.1-mini`
+   - Anthropic: `AnthropicProvider(model="claude-3-7-sonnet-20250219")`
 4. **Attach tools & config**:
    Define functions with standard docstrings and type annotations decorated with `@tool`.
 5. **Add telemetry for visibility**:
-   Attach `ConsoleSink()` for live terminal logs or `InMemorySink()` to make programmatic test assertions on tokens, tool calls, and retries.
+   Attach `ConsoleSink()` for live terminal logs or `InMemorySink()` to make programmatic test assertions on tokens, tool calls, and execution latencies.
 6. **Verify and run**:
    Run with `python <script_name>.py` or write `pytest` suites asserting on `agent.messages` and `sink.events`.
 
@@ -144,11 +147,11 @@ When creating a new test project or experiment in `evidor-testing`:
 
 For in-depth guides and API specs, consult the reference documents:
 
-- [Agent & Context Management](./references/core-agent-and-context.md) — Multi-turn turns, compaction, summarization models, retry configs, and async API.
-- [Providers & Low-level Generation](./references/providers-and-models.md) — Supported providers, credentials, custom `ModelProvider` protocol, and `GenerationRequest`.
+- [Agent & Context Management](./references/core-agent-and-context.md) — Multi-turn turns, provider context chaining strategies, response IDs, and async API.
+- [Providers & Low-level Generation](./references/providers-and-models.md) — Supported modern providers (Gemini 3.x, GPT-6 era, Claude 3.7), modern SDKs/APIs, custom `BaseProvider`, and `GenerationRequest`.
 - [Tools & Model Context Protocol (MCP)](./references/tools-and-mcp.md) — Tool authoring, built-in tools, filesystem tools, search adapters, and MCP stdio/HTTP/SSE configs.
 - [Telemetry & Observability](./references/telemetry-and-observability.md) — Sinks (Console, InMemory, OTel, Langfuse, Phoenix, Prometheus), privacy mode, and trace hierarchies.
-- [Testing & Playground Patterns](./references/testing-and-playground-patterns.md) — Mock providers, zero-cost deterministic testing, pytest recipes, and playground project organization.
+- [Testing & Playground Patterns](./references/testing-and-playground-patterns.md) — Mock providers with context strategies, zero-cost deterministic testing, pytest recipes, and playground project organization.
 
 ---
 
@@ -157,8 +160,7 @@ For in-depth guides and API specs, consult the reference documents:
 Check the [examples/](./examples/) folder for tested, end-to-end scripts:
 - [Quickstart with Gemini](./examples/quickstart_agent.py)
 - [Custom Tools & Built-ins](./examples/tools_agent.py)
-- [Context Compaction & Summarization](./examples/context_compaction.py)
+- [Provider Context Chaining](./examples/provider_context_chaining.py)
 - [Model Context Protocol (MCP)](./examples/mcp_agent.py)
 - [Telemetry & Assertions](./examples/telemetry_agent.py)
 - [Async Agent Conversations](./examples/async_agent.py)
-

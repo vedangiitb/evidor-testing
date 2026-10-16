@@ -1,91 +1,124 @@
 # Providers & Models Reference
 
-Evidor is built on a clean, provider-agnostic abstraction. You can switch between providers or use multiple providers in the same application without changing your business logic or agent loop code.
+Evidor provides a clean, modern interface for multi-provider conversational agents and stateless LLM calls. Evidor embraces breaking changes to maintain clean, modern integrations with zero legacy fallbacks.
 
 ---
 
-## Supported Providers
+## Active Recommended Models & Provider Matrix
 
-| Provider Class | Underlying SDK | Env Variable | Example Models | Extra Requirement |
-| :--- | :--- | :--- | :--- | :--- |
-| `GeminiProvider` | `google-genai` | `GEMINI_API_KEY` | `gemini-2.5-flash`, `gemini-2.5-pro` | `pip install "evidor[gemini]"` |
-| `OpenAIProvider` | `openai` | `OPENAI_API_KEY` | `gpt-4.1-mini`, `gpt-4.1`, `gpt-4o` | `pip install "evidor[openai]"` |
-| `AnthropicProvider` | `anthropic` | `ANTHROPIC_API_KEY` | `claude-3-5-sonnet-20241022`, `claude-3-haiku-20240307` | `pip install "evidor[anthropic]"` |
-
-### 1. GeminiProvider
-
-```python
-from evidor import GeminiProvider
-
-# Automatically reads GEMINI_API_KEY from environment
-provider = GeminiProvider(model="gemini-2.5-flash")
-
-# Or pass explicitly:
-provider = GeminiProvider(
-    model="gemini-2.5-flash",
-    api_key="your-api-key",
-)
-```
-
-### 2. OpenAIProvider
-
-```python
-from evidor import OpenAIProvider
-
-# Automatically reads OPENAI_API_KEY from environment
-provider = OpenAIProvider(model="gpt-4.1-mini")
-
-# Or pass explicitly:
-provider = OpenAIProvider(
-    model="gpt-4.1-mini",
-    api_key="sk-...",
-    base_url="https://api.openai.com/v1",  # Optional custom base URL
-)
-```
-
-### 3. AnthropicProvider
-
-```python
-from evidor import AnthropicProvider
-
-# Automatically reads ANTHROPIC_API_KEY from environment
-provider = AnthropicProvider(model="claude-3-5-sonnet-20241022")
-
-# Or pass explicitly:
-provider = AnthropicProvider(
-    model="claude-3-5-sonnet-20241022",
-    api_key="sk-ant-...",
-)
-```
+| Provider Class | Underlying SDK | Env Variable | Active Recommended Models | Outdated / Restricted | Extra Requirement |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| `GeminiProvider` | `google-genai` | `GEMINI_API_KEY` | `gemini-3.8-flash`<br>`gemini-3.5-flash-lite`<br>`gemini-3.1-pro-preview`<br>`gemini-3.8-live` | `gemini-2.5-flash`<br>`gemini-2.5-pro`<br>`gemini-2.0-flash`<br>`gemini-1.5-*` | `pip install "evidor[gemini]"` |
+| `OpenAIProvider` | `openai` | `OPENAI_API_KEY` | `gpt-6-astra`<br>`gpt-6.1-sol`<br>`gpt-6-luna`<br>`gpt-4.1`<br>`gpt-4.1-mini` | `gpt-4o`<br>`gpt-4o-mini`<br>`o1`, `o3-mini`<br>`gpt-4.5-preview`<br>`gpt-3.5-turbo` | `pip install "evidor[openai]"` |
+| `AnthropicProvider` | `anthropic` | `ANTHROPIC_API_KEY` | `claude-3-7-sonnet-20250219` | `claude-3-5-sonnet-20241022`<br>`claude-3-haiku-20240307` | `pip install "evidor[anthropic]"` |
 
 ---
 
-## Low-Level Direct Generation
+## 1. Google Gemini (`GeminiProvider`)
+
+- **Modern SDK**: Uses `google-genai` (`from google import genai`, `from google.genai import types`). Legacy packages (`google-generativeai` or `@google/generative-ai`) are strictly prohibited.
+- **Interactions API**: Exclusively uses Google GenAI's Interactions API (`client.interactions.create`) with server-side context chaining via `previous_interaction_id`.
+- **Thinking Configuration**:
+  - In Gemini 3.x, configure reasoning using `thinking_level` string enum (`"minimal"`, `"low"`, `"medium"`, `"high"`):
+    ```python
+    from evidor import GeminiProvider, GeminiThinkingConfig
+
+    # Shorthand string enum
+    provider = GeminiProvider(model="gemini-3.8-flash", thinking="high")
+
+    # Shorthand bool (False disables thinking; True enables dynamic thinking)
+    provider = GeminiProvider(model="gemini-3.8-flash", thinking=False)
+
+    # Typed configuration
+    provider = GeminiProvider(
+        model="gemini-3.8-flash",
+        thinking=GeminiThinkingConfig(thinking_level="medium", include_thoughts=True),
+    )
+    ```
+  - **Sampling Notice**: Do **NOT** set `temperature`, `top_p`, or `top_k` for Gemini 3.x models; they are calibrated and optimized for default reasoning settings.
+
+---
+
+## 2. OpenAI (`OpenAIProvider`)
+
+- **Modern SDK**: Uses `openai` v1.x/v3.x+ (`from openai import OpenAI`). Pre-1.0 legacy syntax is prohibited.
+- **Responses API**: Exclusively uses OpenAI's modern Responses API (`client.responses.create`) with full support for `previous_response_id` chaining, conversation IDs, server-side persistence (`store=True`), and reasoning models.
+- **Reasoning Configuration**:
+  - Configure `reasoning={"effort": "..."}` with supported levels: `"none"`, `"low"`, `"medium"`, `"high"`, `"xhigh"`, `"max"`:
+    ```python
+    from evidor import OpenAIProvider, OpenAIThinkingConfig
+
+    # Shorthand effort string
+    provider = OpenAIProvider(model="gpt-6-astra", thinking="high")
+
+    # Typed configuration
+    provider = OpenAIProvider(
+        model="gpt-6-astra",
+        thinking=OpenAIThinkingConfig(effort="medium", summary="detailed"),
+    )
+    ```
+
+---
+
+## 3. Anthropic (`AnthropicProvider`)
+
+- **Messages API**: Modern Messages API with native ephemeral prompt caching (`cache_control={"type": "ephemeral"}`).
+- **Thinking Configuration**:
+  - Configure extended token budgets (`budget_tokens >= 1024`) or adaptive effort:
+    ```python
+    from evidor import AnthropicProvider, AnthropicThinkingConfig
+
+    # Shorthand int (budget tokens cap >= 1024)
+    provider = AnthropicProvider(model="claude-3-7-sonnet-20250219", thinking=4096)
+
+    # Typed configuration
+    provider = AnthropicProvider(
+        model="claude-3-7-sonnet-20250219",
+        thinking=AnthropicThinkingConfig(budget_tokens=8192),
+    )
+    ```
+
+---
+
+## Low-Level Direct Generation (`GenerationRequest`)
 
 You can invoke model providers directly without session history or agent state using `GenerationRequest` and `GenerationResponse`:
 
 ```python
 from evidor import GenerationRequest, Message, GeminiProvider
 
-provider = GeminiProvider(model="gemini-2.5-flash")
+provider = GeminiProvider(model="gemini-3.8-flash")
 
-# Multi-message generation
 request = GenerationRequest(
     messages=[
         Message(role="system", content="You are a senior systems architect."),
         Message(role="user", content="Contrast Kafka and RabbitMQ in two bullet points."),
     ],
-    temperature=0.2,       # Optional parameter passed to provider
+    # Optional parameters:
+    # previous_response_id="resp_123", # Prior response ID to chain
+    # conversation_id="conv_abc",      # External conversation resource ID
+    # store=True,                      # Whether provider should persist completion
+    # system="Developer instructions",  # Top-level system prompt
 )
 response = provider.generate(request)
 
-print(response.text)
+print(f"Response (ID: {response.id}):\n{response.text}")
 print("Model used:", response.model)
+
+if response.thinking:
+    print(f"Internal reasoning:\n{response.thinking}")
+
 if response.usage:
-    print(f"Tokens: prompt={response.usage.input_tokens}, completion={response.usage.output_tokens}")
+    print(
+        f"Tokens: prompt={response.usage.prompt_tokens}, "
+        f"completion={response.usage.completion_tokens}, "
+        f"cached={response.usage.cached_tokens}, "
+        f"reasoning={response.usage.reasoning_tokens}"
+    )
 ```
 
-### Single-Prompt Shortcut:
+### Single-Prompt Shortcut
+
 ```python
 request = GenerationRequest(prompt="Summarize the theory of relativity.")
 response = provider.generate(request)
@@ -95,31 +128,35 @@ response = provider.generate(request)
 
 ## Custom Model Providers (`ModelProvider` Protocol)
 
-Any class implementing the `ModelProvider` protocol can be plugged into `Agent` or `summarization_model`:
+Any class implementing the `ModelProvider` protocol (or subclassing `BaseProvider`) can be plugged into `Agent`:
 
 ```python
-from typing import Protocol
 from evidor import GenerationRequest, GenerationResponse, Agent
+from evidor.agent.providers.base import BaseProvider
 
-class CustomMockProvider:
-    """A deterministic mock provider for testing agents offline."""
-    
+class CustomMockProvider(BaseProvider):
+    """Deterministic mock provider for testing agents offline."""
+
     def __init__(self, model: str = "mock-model") -> None:
-        self.model = model
+        super().__init__(model=model)
+
+    @property
+    def context_strategy(self) -> str:
+        return "stateless"  # or 'response_chain' / 'interaction_chain' / 'prompt_caching'
 
     def with_model(self, model: str) -> "CustomMockProvider":
         return CustomMockProvider(model=model)
 
     def generate(self, request: GenerationRequest) -> GenerationResponse:
-        last_user_message = request.messages[-1].content if request.messages else request.prompt
+        last_msg = request.messages[-1].content if request.messages else request.prompt
         return GenerationResponse(
-            text=f"Echo: {last_user_message}",
-            model=self.model,
+            id="mock_resp_1",
+            text=f"Echo: {last_msg}",
+            model=self._model,
         )
 
-# Use in agent
+# Use with Agent
 agent = Agent(CustomMockProvider())
 response = agent.send("Testing custom provider")
 assert response.text == "Echo: Testing custom provider"
 ```
-

@@ -2,25 +2,24 @@
 
 ## The `Agent` Class
 
-The `Agent` class coordinates model interaction, conversational history, context window compaction, tools execution, retries, and telemetry.
+The `Agent` class coordinates model interactions, conversational history, provider-native context chaining, tool execution, and telemetry.
 
 ### Constructor Parameters
 
 ```python
-from evidor import Agent, GeminiProvider, RetryConfig
+from evidor import Agent, GeminiProvider, OpenAIProvider, AnthropicProvider
 
 agent = Agent(
-    provider=GeminiProvider(model="gemini-2.5-flash"),
+    provider=GeminiProvider(model="gemini-3.8-flash"),
     system_prompt="You are a senior code reviewer.",
-    tools=[...],
-    mcp_servers={...},          # Or mcp_client=client
-    max_tool_iterations=10,     # Max loop turns per send() before stopping
-    tool_timeout=15.0,          # Per-tool execution timeout in seconds
-    context_window=16_000,      # Max estimated token budget before compaction
-    max_messages=50,            # Max turn count before compaction
-    summarization_model="gemini-2.5-flash", # String or separate ModelProvider
-    telemetry=...,              # Sink, list of sinks, or TelemetryRuntime
-    retry_config=RetryConfig(max_retries=3), # Or max_retries=3 or retry_config=False
+    tools=[...],                        # Custom @tool functions or Tool instances
+    mcp_servers={...},                  # Or mcp_client=client
+    max_tool_iterations=10,             # Max loop turns per send() before stopping
+    tool_timeout=15.0,                  # Per-tool execution timeout in seconds
+    previous_response_id="resp_abc123", # Optional: resume an existing response/interaction chain
+    conversation_id="conv_xyz789",      # Optional: attach to an external conversation resource
+    store=True,                         # Optional: instruct provider to persist completion
+    telemetry=...,                      # Sink, list of sinks, or TelemetryRuntime
 )
 ```
 
@@ -40,14 +39,32 @@ response = await agent.send_async("Explain green threads vs OS threads.")
 print(response.text)
 ```
 
-### 2. Inspecting Messages
+### 2. Inspecting Context State & Response IDs
 
-The agent retains all active conversation turns:
+Evidor delegates context management directly to provider-native mechanisms and exposes the state through properties:
+
+```python
+# The context strategy employed by the active provider:
+# 'response_chain'   -> OpenAI Responses API chaining
+# 'interaction_chain' -> Gemini Interactions API chaining
+# 'prompt_caching'    -> Anthropic ephemeral prompt caching
+# 'stateless_replay'  -> Full history replay fallback
+print(agent.strategy)
+
+# The ID of the latest provider response or interaction in this chain
+print(agent.last_response_id)  # e.g., 'resp_6789' or 'int_1234'
+
+# The optional external conversation identifier
+print(agent.conversation_id)
+```
+
+### 3. Inspecting Messages
+
+The agent records all conversation turns for telemetry, auditing, and fallback replays:
 
 ```python
 for msg in agent.messages:
-    prefix = "[SUMMARY] " if msg.is_summary else ""
-    print(f"{prefix}{msg.role}: {msg.content}")
+    print(f"[{msg.role}]: {msg.content}")
 ```
 
 Each `Message` object contains:
@@ -56,19 +73,24 @@ Each `Message` object contains:
 - `tool_calls`: Optional tuple of `ToolCall` objects (assistant role)
 - `tool_call_id`: Associated tool call identifier (tool role)
 - `name`: Tool name if role is `"tool"`
-- `is_summary`: Boolean flag indicating if this message is a compacted summary
+- `thinking`: Optional internal reasoning text
+- `thought_blocks`: Optional raw thought block payloads with cryptographic signatures (e.g. Gemini)
 
-### 3. Resetting History
+### 4. Resetting History
 
 ```python
-# Clears user, assistant, and summary messages, but preserves initial system_prompt
+# Clears user, assistant, and tool messages, and resets last_response_id to None
+# Preserves the initial system_prompt
 agent.clear_history()
+
+# reset() is an alias for clear_history()
+agent.reset()
 ```
 
-### 4. Cleanup & Context Manager
+### 5. Cleanup & Context Managers
 
 ```python
-# Using context managers automatically closes MCP client subprocesses and telemetry sinks
+# Using context managers automatically closes MCP client subprocesses and flushes telemetry sinks
 with Agent(provider, mcp_servers=...) as agent:
     agent.send(...)
 
@@ -82,79 +104,51 @@ agent.close()
 
 ---
 
-## Context Window Management & Compaction
+## Provider-Managed Context Management
 
-Evidor automatically tracks token estimates and turn counts via `ConversationContext`.
+Modern LLM providers maintain context server-side or via hardware-accelerated KV prefix caching. Rather than running client-side token counters, sliding windows, or summarization loops that break prompt caching, Evidor delegates context management to each provider's native mechanism:
 
-### Compaction Mechanics
+| Provider | Strategy (`agent.strategy`) | Native Mechanism | How It Works |
+| :--- | :--- | :--- | :--- |
+| **OpenAIProvider** | `"response_chain"` | Responses API (`previous_response_id`) | Each turn sends only delta messages or tool outputs chained to `previous_response_id` (and optional `conversation_id`). OpenAI manages context server-side. |
+| **GeminiProvider** | `"interaction_chain"` | Interactions API (`previous_interaction_id`) | Each turn chains to the prior `interaction_id`. Gemini manages conversation turns server-side. |
+| **AnthropicProvider** | `"prompt_caching"` | Ephemeral Prompt Caching | Replays conversation turns while setting ephemeral prompt caching headers (`cache_control={"type": "ephemeral"}`). Anthropic caches the prefix with up to 90% latency/cost reduction. |
+| **Custom / Base** | `"stateless_replay"` | Stateless history replay | Replays accumulated message history on each request. |
 
-1. **Thresholds**: Compaction triggers when:
-   - Total estimated token count exceeds `context_window` (default: 16,000)
-   - Or message count exceeds `max_messages` (default: 50)
-2. **Preservation**:
-   - The permanent `system_prompt` is **never lost**.
-   - Recent message turns (the most recent conversational turns) remain verbatim.
-3. **Summarization**:
-   - The older turns are gathered into a prompt: `"Summarize the following conversation history concisely..."`
-   - The summary provider generates a structured summary.
-   - The summary is inserted as a bounded summary message: `Message(role="system", content=..., is_summary=True)`.
+### Resuming Existing Chains
 
-### Configurable Summarization Model
-
-You can assign a lightweight, fast, or cheaper model specifically for summarization:
+To continue a conversation across worker processes or sessions, pass the prior response ID to the constructor:
 
 ```python
-from evidor import Agent, OpenAIProvider, GeminiProvider
-
-# Option A: Different model string on the primary provider
+# Resume OpenAI conversation
 agent = Agent(
-    OpenAIProvider(model="gpt-4.1"),
-    summarization_model="gpt-4.1-mini",
+    OpenAIProvider(model="gpt-6-astra"),
+    previous_response_id="resp_prev_987",
 )
-
-# Option B: An entirely distinct provider instance
-agent = Agent(
-    OpenAIProvider(model="gpt-4.1"),
-    summarization_model=GeminiProvider(model="gemini-2.5-flash"),
-)
+agent.send("Continue the analysis from our previous run.")
 ```
 
 ---
 
-## Automatic Retries & Exponential Backoff
+## User-Managed Message History (Stateless LLM Calls)
 
-Evidor implements a unified, coordinated retry engine:
-
-### Configuration Options
+When your application handles its own persistence (e.g., PostgreSQL, Redis, custom vector store, or custom state machine), you maintain the message list and pass it directly to `provider.generate()`. Evidor never modifies, prunes, or summarises your messages behind your back:
 
 ```python
-from evidor import Agent, GeminiProvider, RetryConfig
+from evidor import GenerationRequest, Message, GeminiProvider
 
-# 1. Simple retry count
-agent = Agent(GeminiProvider("gemini-2.5-flash"), max_retries=5)
+provider = GeminiProvider(model="gemini-3.8-flash")
 
-# 2. Disable retries completely
-agent = Agent(GeminiProvider("gemini-2.5-flash"), max_retries=0)
-# or:
-agent = Agent(GeminiProvider("gemini-2.5-flash"), retry_config=False)
+chat_history = [
+    Message(role="system", content="You are a database tuning expert."),
+    Message(role="user", content="What are the optimal settings for PostgreSQL work_mem?"),
+]
 
-# 3. Fine-grained RetryConfig
-agent = Agent(
-    GeminiProvider("gemini-2.5-flash"),
-    retry_config=RetryConfig(
-        max_retries=3,              # Max attempts after initial failure
-        initial_delay=0.5,          # Initial backoff delay in seconds
-        max_delay=60.0,             # Maximum ceiling backoff cap
-        backoff_factor=2.0,         # Exponential multiplier (e.g. 0.5s, 1.0s, 2.0s)
-        jitter=True,                # Full random jitter to prevent stampedes
-        retryable_exceptions=None,  # None = auto-detect transient network/provider errors
-    ),
-)
+# Turn 1
+response = provider.generate(GenerationRequest(messages=chat_history))
+chat_history.append(Message(role="assistant", content=response.text))
+
+# Turn 2
+chat_history.append(Message(role="user", content="How does that impact sort performance?"))
+response = provider.generate(GenerationRequest(messages=chat_history))
 ```
-
-### Key Architectural Behaviors:
-- **Narrow Boundary**: Retries only wrap the raw provider LLM call (`provider.generate`). Tool executions have their own error handling and do not consume LLM retry budgets.
-- **SDK Retries Disabled**: Evidor explicitly disables internal retry loops in OpenAI, Anthropic, and Google GenAI SDK clients (`attempts=1`), ensuring a single unified retry budget and telemetry source of truth.
-- **Rate Limit & `Retry-After` Header Handling**: When a 429 or rate-limit error includes a `Retry-After` delay, Evidor respects the requested duration (bounded by `max_delay`).
-- **Async Non-Blocking Backoff**: In `send_async()`, backoff pauses with `await asyncio.sleep()`, avoiding thread blocking.
-
