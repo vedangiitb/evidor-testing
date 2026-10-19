@@ -11,7 +11,7 @@ from evidor import Agent, GeminiProvider
 def main() -> None:
     # 1. Initialize the provider (reads GEMINI_API_KEY from environment)
     # Uses Gemini 3.8 Flash with native Interactions API
-    provider = GeminiProvider(model="gemini-3.8-flash")
+    provider = GeminiProvider(model="gemini-2.5-flash")
 
     # 2. Create the agent with an optional system prompt
     agent = Agent(

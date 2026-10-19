@@ -29,7 +29,7 @@ When given an issue or repository to triage:
 def create_triage_agent(
     github_token: str | None = None,
     mcp_url: str | None = None,
-    model: str = "gemini-3.8-flash",
+    model: str = "gemini-2.5-flash",
     enable_langfuse: bool = True,
     mode: str | None = None,
 ) -> Agent:

@@ -58,8 +58,8 @@ def parse_args(args: list[str] | None = None) -> argparse.Namespace:
         "--model",
         "-m",
         type=str,
-        default="gemini-3.8-flash",
-        help="Model name (e.g., 'gemini-3.8-flash', 'gpt-6-astra', 'gpt-4.1-mini').",
+        default="gemini-3.1-flash-lite",
+        help="Model name (e.g., 'gemini-3.1-flash-lite', 'gpt-6-astra', 'gpt-4.1-mini').",
     )
     parser.add_argument(
         "--tavily-key",

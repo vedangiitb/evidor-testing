@@ -90,7 +90,7 @@ python -m projects.deep_research.cli --query "Compare the main Python agent fram
 | :--- | :--- | :--- |
 | `--query`, `-q` | Frameworks query | Research topic or comparative question |
 | `--provider`, `-p` | `gemini` | `gemini` or `openai` |
-| `--model`, `-m` | `gemini-3.8-flash` | Model identifier |
+| `--model`, `-m` | `gemini-3.1-flash-lite` | Model identifier |
 | `--tavily-key` | Env `TAVILY_API_KEY` | Tavily API Key |
 | `--no-phoenix` | `False` | Disable Arize Phoenix telemetry |
 | `--phoenix-endpoint` | `http://localhost:6006/v1/traces` | OTLP HTTP collector endpoint |

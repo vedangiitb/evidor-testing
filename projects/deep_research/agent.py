@@ -71,7 +71,7 @@ def create_research_agent(
     context: ResearchContext,
     *,
     provider: ModelProvider | None = None,
-    model_name: str = "gemini-3.8-flash",
+    model_name: str = "gemini-3.1-flash-lite",
     search_provider: WebSearchProvider | None = None,
     max_search_results: int = 5,
     max_tool_iterations: int = 30,
